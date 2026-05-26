@@ -10,7 +10,6 @@ import { DecryptionFailedError, InvalidParametersError } from './errors.ts'
 import { PrivateKeyMessage, PublicKeyMessage } from './keychain/keys.ts'
 import type { Keychain as KeychainInterface, KeyInfo, PrivateKey, CryptoImplementation, Cipher, CipherOptions, EncryptionResult, GenerateKeyOptions, PublicKey, KeychainComponents, KeychainInit } from './index.ts'
 import type { AbortOptions } from 'abort-error'
-import type { Logger } from 'birnam'
 import type { Batch } from 'interface-datastore'
 
 export * from './crypto/index.ts'
@@ -123,7 +122,6 @@ function getSalt (salt?: string | Uint8Array): Uint8Array<ArrayBuffer> | undefin
  */
 export class Keychain implements KeychainInterface {
   private readonly components: KeychainComponents
-  private readonly log: Logger
   private readonly self: string
   private cipher: Cipher
   private salt: Uint8Array<ArrayBuffer>
@@ -135,7 +133,6 @@ export class Keychain implements KeychainInterface {
    */
   constructor (components: KeychainComponents, init: KeychainInit = {}) {
     this.components = components
-    this.log = components.logger.forComponent('libp2p:keychain')
     this.self = init.selfKey ?? 'self'
     this.salt = getSalt(init.salt) ?? KEYCHAIN_DEK_INIT.salt
 
@@ -353,8 +350,6 @@ export class Keychain implements KeychainInterface {
       throw new InvalidParametersError(`Invalid pass length ${password.length}, must be at least ${MIN_PASS_LENGTH}`)
     }
 
-    this.log('recreating keychain')
-
     const oldCipher = this.cipher
     const newCipher = this.cipher = createAESCipher(password, this.salt, this.keychainDekOptions, this.privateKeyDekOptions)
 
@@ -368,8 +363,6 @@ export class Keychain implements KeychainInterface {
     }
 
     await batch.commit(options)
-
-    this.log('keychain reconstructed')
   }
 
   async loadPublicKeyFromProtobuf (buf: Uint8Array, options?: AbortOptions): Promise<PublicKey> {

@@ -1,7 +1,7 @@
 import { generateKeyPair } from '@libp2p/crypto/keys'
 import { keychain as libp2pKeychainFactory } from '@libp2p/keychain'
-import { defaultLogger } from '@libp2p/logger'
 import { expect } from 'aegir/chai'
+import { defaultLogger } from 'birnam'
 import { MemoryDatastore } from 'datastore-core/memory'
 import all from 'it-all'
 import { ed25519Crypto } from '../src/crypto/ed25519.ts'
@@ -13,7 +13,6 @@ import type { Keychain } from '../src/index.ts'
 import type { PrivateKey } from '../src/index.ts'
 import type { KeychainInit } from '../src/index.ts'
 import type { Keychain as Libp2pKeychain } from '@libp2p/keychain'
-import type { ComponentLogger } from 'birnam'
 import type { Datastore } from 'interface-datastore'
 
 const SUPPORTED_KEYS: Array<'RSA' | 'Ed25519'> = [
@@ -27,11 +26,9 @@ describe('keychain', () => {
   const rsaKeyName = 'tajné jméno'
   /* spell-checker:disable-next-line */
   const renamedRsaKeyName = 'ชื่อลับ'
-  let logger: ComponentLogger
   let datastore: Datastore
 
   beforeEach(() => {
-    logger = defaultLogger()
     datastore = new MemoryDatastore()
   })
 
@@ -39,7 +36,6 @@ describe('keychain', () => {
     const selfKey = 'other-key'
     const keychain = new KeychainClass({
       datastore,
-      logger,
       getCryptoImplementation: getCryptoImplementation()
     }, {
       selfKey
@@ -59,7 +55,6 @@ describe('keychain', () => {
     await expect(async function () {
       return new KeychainClass({
         datastore,
-        logger,
         getCryptoImplementation: getCryptoImplementation()
       }, {
         password: '< 20 character'
@@ -70,7 +65,6 @@ describe('keychain', () => {
   it('supports supported hashing algorithms', async () => {
     const ok = new KeychainClass({
       datastore,
-      logger,
       getCryptoImplementation: getCryptoImplementation()
     }, {
       password,
@@ -85,7 +79,6 @@ describe('keychain', () => {
     await expect(async function () {
       return new KeychainClass({
         datastore,
-        logger,
         getCryptoImplementation: getCryptoImplementation()
       }, {
         // @ts-expect-error invalid parameter
@@ -97,7 +90,6 @@ describe('keychain', () => {
   it('can list keys without a password', async () => {
     const keychain = new KeychainClass({
       datastore,
-      logger,
       getCryptoImplementation: getCryptoImplementation()
     })
 
@@ -107,12 +99,10 @@ describe('keychain', () => {
   it('can remove a key without a password', async () => {
     const keychainWithoutPassword = new KeychainClass({
       datastore,
-      logger,
       getCryptoImplementation: getCryptoImplementation()
     })
     const keychainWithPassword = new KeychainClass({
       datastore,
-      logger,
       getCryptoImplementation: getCryptoImplementation()
     }, {
       password: `hello-${Date.now()}-${Date.now()}`
@@ -135,7 +125,6 @@ describe('keychain', () => {
   it('should validate key names before removing', async () => {
     const keychain = new KeychainClass({
       datastore,
-      logger,
       getCryptoImplementation: getCryptoImplementation()
     })
 
@@ -158,7 +147,6 @@ describe('keychain', () => {
   it('does not overwrite existing key', async () => {
     const keychain = new KeychainClass({
       datastore,
-      logger,
       getCryptoImplementation: getCryptoImplementation()
     })
 
@@ -176,7 +164,6 @@ describe('keychain', () => {
     beforeEach(async () => {
       keychain = new KeychainClass({
         datastore,
-        logger,
         getCryptoImplementation: getCryptoImplementation()
       })
 
@@ -215,7 +202,6 @@ describe('keychain', () => {
     beforeEach(async () => {
       keychain = new KeychainClass({
         datastore,
-        logger,
         getCryptoImplementation: getCryptoImplementation()
       })
 
@@ -257,7 +243,6 @@ describe('keychain', () => {
     beforeEach(async () => {
       keychain = new KeychainClass({
         datastore,
-        logger,
         getCryptoImplementation: getCryptoImplementation()
       })
 
@@ -309,7 +294,6 @@ describe('keychain', () => {
     beforeEach(async () => {
       keychain = new KeychainClass({
         datastore,
-        logger,
         getCryptoImplementation: getCryptoImplementation()
       })
     })
@@ -362,7 +346,6 @@ describe('keychain', () => {
 
       keychain = new KeychainClass({
         datastore,
-        logger,
         getCryptoImplementation: getCryptoImplementation()
       }, options)
     })
@@ -393,7 +376,6 @@ describe('keychain', () => {
       // cannot load with old password
       const keychainWithOldPassword = new KeychainClass({
         datastore,
-        logger,
         getCryptoImplementation: getCryptoImplementation()
       }, options)
 
@@ -403,7 +385,6 @@ describe('keychain', () => {
       // new password should work
       const keychainWithNewPassword = new KeychainClass({
         datastore,
-        logger,
         getCryptoImplementation: getCryptoImplementation()
       }, {
         ...options,
@@ -421,7 +402,6 @@ describe('keychain', () => {
       beforeEach(async () => {
         keychain = new KeychainClass({
           datastore,
-          logger,
           getCryptoImplementation: getCryptoImplementation()
         })
       })
@@ -496,7 +476,6 @@ describe('keychain', () => {
     beforeEach(async () => {
       keychain = new KeychainClass({
         datastore,
-        logger,
         getCryptoImplementation: getCryptoImplementation()
       })
     })
@@ -518,13 +497,12 @@ describe('keychain', () => {
     beforeEach(async () => {
       keychain = new KeychainClass({
         datastore,
-        logger,
         getCryptoImplementation: getCryptoImplementation()
       })
 
       libp2pKeychain = libp2pKeychainFactory()({
         datastore,
-        logger
+        logger: defaultLogger()
       })
     })
 

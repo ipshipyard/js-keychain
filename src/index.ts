@@ -11,7 +11,6 @@
  */
 import { Keychain as KeychainClass } from './keychain.ts'
 import type { AbortOptions } from 'abort-error'
-import type { ComponentLogger } from 'birnam'
 import type { Datastore } from 'interface-datastore'
 import type { CID, MultihashDigest } from 'multiformats/cid'
 
@@ -310,7 +309,6 @@ export interface KeychainInit {
 
 export interface KeychainComponents {
   datastore: Datastore
-  logger: ComponentLogger
   getCryptoImplementation: CryptoImplementationLoader
 }
 
