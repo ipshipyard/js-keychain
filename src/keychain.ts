@@ -1,18 +1,19 @@
+import { PrivateKeyMessage, PublicKeyMessage } from '@ipshipyard/crypto/pb'
 import { Key } from 'interface-datastore/key'
 import { base58btc } from 'multiformats/bases/base58'
 import { base64 } from 'multiformats/bases/base64'
 import { sha256 } from 'multiformats/hashes/sha2'
 import sanitize from 'sanitize-filename'
+import { concat as uint8ArrayConcat } from 'uint8arrays/concat'
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
 import { toString as uint8ArrayToString } from 'uint8arrays/to-string'
 import { withArrayBuffer } from 'uint8arrays/with-array-buffer'
 import { DecryptionFailedError, InvalidParametersError } from './errors.ts'
-import { PrivateKeyMessage, PublicKeyMessage } from './keychain/keys.ts'
-import type { Keychain as KeychainInterface, KeyInfo, PrivateKey, CryptoImplementation, Cipher, CipherOptions, EncryptionResult, GenerateKeyOptions, PublicKey, KeychainComponents, KeychainInit } from './index.ts'
+import { privateKeyFromPEM } from './legacy.ts'
+import type { Keychain as KeychainInterface, KeyInfo, GenerateKeyOptions, KeychainComponents, KeychainInit, Cipher, EncryptionResult, CipherOptions } from './index.ts'
+import type { CryptoImplementation, PrivateKey, PublicKey } from '@ipshipyard/crypto'
 import type { AbortOptions } from 'abort-error'
 import type { Batch } from 'interface-datastore'
-
-export * from './crypto/index.ts'
 
 const keyPrefix = '/pkcs8/'
 const infoPrefix = '/info/'
@@ -61,13 +62,6 @@ const KEY_LENGTHS: Record<string, number> = {
   'SHA-512': 256
 }
 
-export interface DEKConfig {
-  hash: string
-  salt: string
-  iterationCount: number
-  keyLength: number
-}
-
 function validateKeyName (name: string): boolean {
   if (name == null) {
     return false
@@ -94,7 +88,7 @@ function dsInfoName (name: string): Key {
   return new Key(infoPrefix + name)
 }
 
-export async function keyId (key: PrivateKey, options?: AbortOptions): Promise<string> {
+async function keyId (key: PrivateKey, options?: AbortOptions): Promise<string> {
   const pb = key.toProtobuf()
   const hash = await sha256.digest(pb)
 
@@ -205,16 +199,21 @@ export class Keychain implements KeychainInterface {
   }
 
   private async _importKey (name: string, privateKey: PrivateKey, cipher: Cipher, batch: Batch, options?: AbortOptions): Promise<void> {
-    const cryptoImpl = await this.components.getCryptoImplementation(privateKey.code, options)
-    const pem = await cryptoImpl.serialize(privateKey, cipher, options)
+    const pb = privateKey.toProtobuf()
+    const result = await cipher.encrypt(pb)
+    const cipherText = uint8ArrayConcat([
+      result.salt,
+      result.iv,
+      result.cipherText
+    ], result.salt.byteLength + result.iv.byteLength + result.cipherText.byteLength)
+    const encodedText = base64.encode(cipherText)
 
-    const keyInfo = {
+    const keyInfo: KeyInfo = {
       name,
-      type: privateKey.type,
       id: await keyId(privateKey, options)
     }
 
-    batch.put(dsName(name), uint8ArrayFromString(pem))
+    batch.put(dsName(name), uint8ArrayFromString(encodedText))
     batch.put(dsInfoName(name), uint8ArrayFromString(JSON.stringify(keyInfo)))
   }
 
@@ -227,42 +226,30 @@ export class Keychain implements KeychainInterface {
   }
 
   private async _exportKey (name: string, cipher: Cipher, options?: AbortOptions): Promise<PrivateKey> {
-    const infoBuf = await this.components.datastore.get(dsInfoName(name), options)
     const keyBuf = await this.components.datastore.get(dsName(name), options)
-    const pem = uint8ArrayToString(keyBuf)
-
-    const info: KeyInfo = JSON.parse(uint8ArrayToString(infoBuf))
+    const keyText = uint8ArrayToString(keyBuf)
     let cryptoImpl: CryptoImplementation | undefined
 
-    if (info.type != null) {
-      cryptoImpl = await this.components.getCryptoImplementation(info.type, options)
-    } else {
-      // legacy @libp2p/keychain does not store the type of key so guess
-      if (pem.includes('BEGIN ENCRYPTED PRIVATE KEY')) {
-        cryptoImpl = await this.components.getCryptoImplementation('RSA', options)
-      } else {
-        const decoded = base64.decode(pem)
-        const salt = decoded.subarray(0, 16)
-        const iv = decoded.subarray(16, 16 + 12)
-        const cipherText = decoded.subarray(16 + 12)
-        const plainText = await cipher.decrypt(salt, iv, cipherText, options)
-        const pb = PrivateKeyMessage.decode(plainText)
-
-        if (pb.Type != null) {
-          cryptoImpl = await this.components.getCryptoImplementation(pb.Type, options)
-        }
-      }
-    }
-
-    if (cryptoImpl == null) {
-      throw new DecryptionFailedError('Unknown key type')
+    // if the stored key is encrypted PEM it's legacy RSA, otherwise derive
+    // from the protobuf data
+    if (keyText.includes('BEGIN ENCRYPTED PRIVATE KEY')) {
+      return privateKeyFromPEM(keyText, cipher, options)
     }
 
     try {
-      const key = await cryptoImpl.deserialize(pem, cipher, options)
-      options?.signal?.throwIfAborted()
+      const decoded = base64.decode(keyText)
+      const salt = decoded.subarray(0, 16)
+      const iv = decoded.subarray(16, 16 + 12)
+      const cipherText = decoded.subarray(16 + 12)
+      const plainText = await cipher.decrypt(salt, iv, cipherText, options)
+      const pb = PrivateKeyMessage.decode(plainText)
 
-      return key
+      if (pb.Type == null) {
+        throw new DecryptionFailedError('Unknown key type')
+      }
+
+      cryptoImpl = await this.components.getCryptoImplementation(pb.Type, options)
+      return await cryptoImpl.privateKeyFromProtobuf(plainText)
     } catch (err: any) {
       if (err.name === 'OperationError') {
         throw new DecryptionFailedError(err.message)
@@ -368,13 +355,13 @@ export class Keychain implements KeychainInterface {
   async loadPublicKeyFromProtobuf (buf: Uint8Array, options?: AbortOptions): Promise<PublicKey> {
     const pb = PublicKeyMessage.decode(buf)
 
-    if (pb.Type == null || pb.Data == null) {
-      throw new InvalidParametersError('Protobuf was missing Type and/or Data')
+    if (pb.Type == null) {
+      throw new InvalidParametersError('Protobuf was missing Type')
     }
 
     const crypto = await this.components.getCryptoImplementation(pb.Type, options)
 
-    return crypto.publicKeyFromProtobuf(pb.Data)
+    return crypto.publicKeyFromProtobuf(buf, options)
   }
 }
 

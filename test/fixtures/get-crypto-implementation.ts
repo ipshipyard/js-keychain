@@ -1,6 +1,7 @@
-import { ed25519Crypto, rsaCrypto } from '../../src/crypto/index.ts'
+import { ed25519Crypto, rsaCrypto } from '@ipshipyard/crypto'
 import { UnknownCryptoImplementationError } from '../../src/errors.ts'
-import type { CryptoImplementation, CryptoImplementationLoader } from '../../src/index.ts'
+import type { CryptoImplementationLoader } from '../../src/index.ts'
+import type { CryptoImplementation } from '@ipshipyard/crypto'
 
 function isPromise <T = any> (obj?: any): obj is Promise<T> {
   return typeof obj?.then === 'function'
