@@ -18,6 +18,8 @@ import type { Batch } from 'interface-datastore'
 const keyPrefix = '/pkcs8/'
 const infoPrefix = '/info/'
 
+const serviceCapabilities = Symbol.for('@libp2p/service-capabilities')
+
 /**
  * Default options for key derivation for the keychain Data Encryption Key.
  *
@@ -168,6 +170,10 @@ export class Keychain implements KeychainInterface {
 
     this.cipher = createAESCipher(init.password ?? '', this.salt, this.keychainDekOptions, this.privateKeyDekOptions)
   }
+
+  readonly [serviceCapabilities]: string[] = [
+    '@ipshipyard/keychain'
+  ]
 
   async generateKey (name: string, options?: GenerateKeyOptions): Promise<PrivateKey> {
     const crypto = await this.components.getCryptoImplementation(options?.type ?? 'Ed25519', options)
