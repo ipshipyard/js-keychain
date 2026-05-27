@@ -10,89 +10,12 @@
  * `CryptoKeyImplementation` instances.
  */
 import { Keychain as KeychainClass } from './keychain.ts'
+import type { CryptoImplementation, PrivateKey, PublicKey } from '@ipshipyard/crypto'
 import type { AbortOptions } from 'abort-error'
 import type { Datastore } from 'interface-datastore'
-import type { CID, MultihashDigest } from 'multiformats/cid'
 
 export interface CryptoImplementationLoader {
   (codeOrName: number | string, options?: AbortOptions): CryptoImplementation | Promise<CryptoImplementation>
-}
-
-export interface PublicKey {
-  /**
-   * The type of the crypto implementation, e.g. `Ed15519`
-   */
-  readonly type: string
-
-  /**
-   * The code that is used as the `Type` field in the protobuf representation of
-   * the public/private keys
-   */
-  readonly code: number
-
-  /**
-   * Return a MultihashDigest that represents this key
-   */
-  toMultihash (): MultihashDigest
-
-  /**
-   * Return the libp2p-key CID that represents this key
-   */
-  toCID (): CID<unknown, 0x72, number, 1>
-
-  /**
-   * Return this key encoded as a protobuf PublicKey message
-   */
-  toProtobuf (): Uint8Array<ArrayBuffer>
-
-  /**
-   * Verify the passed message against it's signature
-   */
-  verify(message: Uint8Array, signature: Uint8Array, options?: AbortOptions): boolean | Promise<boolean>
-}
-
-export function isPublicKey (obj?: any): obj is PublicKey {
-  if (obj == null) {
-    return false
-  }
-
-  return typeof obj.type === 'string' && typeof obj.code === 'number' && typeof obj.verify === 'function'
-}
-
-export interface PrivateKey {
-  /**
-   * The type of the crypto implementation, e.g. `Ed15519`
-   */
-  readonly type: string
-
-  /**
-   * The code that is used as the `Type` field in the protobuf representation of
-   * the public/private keys
-   */
-  readonly code: number
-
-  /**
-   * The public key that corresponds to this private key
-   */
-  readonly publicKey: PublicKey
-
-  /**
-   * Return this key encoded as a protobuf PrivateKey message
-   */
-  toProtobuf (): Uint8Array<ArrayBuffer>
-
-  /**
-   * Sign the passed message and return a signature
-   */
-  sign(message: Uint8Array, options?: AbortOptions): Uint8Array<ArrayBuffer> | Promise<Uint8Array<ArrayBuffer>>
-}
-
-export function isPrivateKey (obj?: any): obj is PrivateKey {
-  if (obj == null) {
-    return false
-  }
-
-  return typeof obj.type === 'string' && typeof obj.code === 'number' && typeof obj.sign === 'function' && isPublicKey(obj.publicKey)
 }
 
 export interface CipherOptions extends AbortOptions {
@@ -113,40 +36,6 @@ export interface Cipher {
   decrypt(salt: Uint8Array, iv: Uint8Array, cipherText: Uint8Array, options?: CipherOptions): Promise<Uint8Array<ArrayBuffer>>
 }
 
-export interface CryptoImplementation {
-  /**
-   * The type of the crypto implementation, e.g. `Ed15519`
-   */
-  type: string
-
-  /**
-   * The code that is used as the `Type` field in the protobuf representation of
-   * the public/private keys
-   */
-  code: number
-
-  /**
-   * Create a new private key
-   */
-  generatePrivateKey(options?: AbortOptions & Record<string, any>): Promise<PrivateKey>
-
-  /**
-   * Convert the passed bytes into a public key. The bytes come from the `.Data`
-   * field of a `PublicKey` protobuf message.
-   */
-  publicKeyFromProtobuf(buf: Uint8Array, options?: AbortOptions): PublicKey | Promise<PublicKey>
-
-  /**
-   * Convert a private key into a string suitable for storing in a datastore
-   */
-  serialize (key: PrivateKey, cipher: Cipher, options?: AbortOptions): Promise<string>
-
-  /**
-   * Convert a string from a datastore into a private key
-   */
-  deserialize (pem: string, cipher: Cipher, options?: AbortOptions): Promise<PrivateKey>
-}
-
 export interface KeyInfo {
   /**
    * The hash of the key
@@ -157,11 +46,6 @@ export interface KeyInfo {
    * The key name
    */
   name: string
-
-  /**
-   * The key type
-   */
-  type?: 'Ed25519' | 'RSA' | string
 }
 
 export interface GenerateKeyOptions extends AbortOptions, Record<string, any> {
@@ -171,6 +55,50 @@ export interface GenerateKeyOptions extends AbortOptions, Record<string, any> {
    * @default 'Ed25519'
    */
   type?: 'Ed25519' | 'RSA' | string
+}
+
+export interface KeychainInit {
+  /**
+   * The password is used to derive a key which encrypts the keychain at rest
+   */
+  password?: string
+
+  /**
+   * Specify a non-default PBK2 function salt
+   */
+  salt?: string
+
+  /**
+   * How many iterations to use when deriving a key from the password
+   *
+   * @default 10_000
+   */
+  iterations?: number
+
+  /**
+   * The hash type
+   *
+   * @default SHA2-512
+   */
+  hash?: 'SHA-256' | 'SHA-384' | 'SHA-512'
+
+  /**
+   * The 'self' key is the private key of the node from which the peer id is
+   * derived.
+   *
+   * It cannot be renamed or removed.
+   *
+   * By default it is stored under the 'self' key, to use a different name, pass
+   * this option.
+   *
+   * @default 'self'
+   */
+  selfKey?: string
+}
+
+export interface KeychainComponents {
+  datastore: Datastore
+  getCryptoImplementation: CryptoImplementationLoader
 }
 
 export interface Keychain {
@@ -266,50 +194,6 @@ export interface Keychain {
    * to the `PublicKey` message.
    */
   loadPublicKeyFromProtobuf (buf: Uint8Array, options?: AbortOptions): Promise<PublicKey>
-}
-
-export interface KeychainInit {
-  /**
-   * The password is used to derive a key which encrypts the keychain at rest
-   */
-  password?: string
-
-  /**
-   * Specify a non-default PBK2 function salt
-   */
-  salt?: string
-
-  /**
-   * How many iterations to use when deriving a key from the password
-   *
-   * @default 10_000
-   */
-  iterations?: number
-
-  /**
-   * The hash type
-   *
-   * @default SHA2-512
-   */
-  hash?: 'SHA-256' | 'SHA-384' | 'SHA-512'
-
-  /**
-   * The 'self' key is the private key of the node from which the peer id is
-   * derived.
-   *
-   * It cannot be renamed or removed.
-   *
-   * By default it is stored under the 'self' key, to use a different name, pass
-   * this option.
-   *
-   * @default 'self'
-   */
-  selfKey?: string
-}
-
-export interface KeychainComponents {
-  datastore: Datastore
-  getCryptoImplementation: CryptoImplementationLoader
 }
 
 export function keychain (init?: KeychainInit): (components: KeychainComponents) => Keychain {
