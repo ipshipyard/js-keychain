@@ -1,6 +1,6 @@
 {
   "name": "@ipshipyard/keychain",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Generate and securely store private keys at rest",
   "license": "Apache-2.0 OR MIT",
   "homepage": "https://github.com/ipshipyard/js-keychain#readme",

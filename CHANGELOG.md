@@ -1,3 +1,9 @@
+## [1.0.1](https://github.com/ipshipyard/js-keychain/compare/v1.0.0...v1.0.1) (2026-05-27)
+
+### Bug Fixes
+
+* add service capabilities ([2e8c7e3](https://github.com/ipshipyard/js-keychain/commit/2e8c7e3139ed78d665367cdbba380ecaca453d76))
+
 ## 1.0.0 (2026-05-27)
 
 ### Features
