@@ -5,17 +5,17 @@
  *
  * ## Configuring additional implementations
  *
- * RSA and Ed25519 keys are supported out of the box but other schemes are
- * configurable by passing a `CryptoImplementationLoader` that can return
- * `CryptoKeyImplementation` instances.
+ * ECDSA, Ed25519 and RSA keys are supported out of the box but other schemes
+ * are configurable by passing a `CryptoLoader` that can return `Crypto`
+ * instances.
  */
 import { Keychain as KeychainClass } from './keychain.ts'
-import type { CryptoImplementation, PrivateKey, PublicKey } from '@ipshipyard/crypto'
+import type { Crypto, PrivateKey, PublicKey } from '@ipshipyard/crypto'
 import type { AbortOptions } from 'abort-error'
 import type { Datastore } from 'interface-datastore'
 
-export interface CryptoImplementationLoader {
-  (codeOrName: number | string, options?: AbortOptions): CryptoImplementation | Promise<CryptoImplementation>
+export interface CryptoLoader {
+  (codeOrName: number | string, options?: AbortOptions): Crypto | Promise<Crypto>
 }
 
 export interface CipherOptions extends AbortOptions {
@@ -54,7 +54,7 @@ export interface GenerateKeyOptions extends AbortOptions, Record<string, any> {
    *
    * @default 'Ed25519'
    */
-  type?: 'Ed25519' | 'RSA' | string
+  type?: 'ECDSA' | 'Ed25519' | 'RSA' | string
 }
 
 export interface KeychainInit {
@@ -98,7 +98,7 @@ export interface KeychainInit {
 
 export interface KeychainComponents {
   datastore: Datastore
-  getCryptoImplementation: CryptoImplementationLoader
+  getCrypto: CryptoLoader
 }
 
 export interface Keychain {

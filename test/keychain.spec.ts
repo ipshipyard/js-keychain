@@ -11,14 +11,15 @@ import { base58btc } from 'multiformats/bases/base58'
 import { sha256 } from 'multiformats/hashes/sha2'
 import { fromString as uint8ArrayFromString } from 'uint8arrays/from-string'
 import { Keychain as KeychainClass } from '../src/keychain.ts'
-import { getCryptoImplementation } from './fixtures/get-crypto-implementation.ts'
+import { getCrypto } from './fixtures/get-crypto.ts'
 import type { Keychain } from '../src/index.ts'
 import type { KeychainInit } from '../src/index.ts'
 import type { PrivateKey } from '@ipshipyard/crypto'
 import type { Keychain as Libp2pKeychain } from '@libp2p/keychain'
 import type { Datastore } from 'interface-datastore'
 
-const SUPPORTED_KEYS: Array<'RSA' | 'Ed25519'> = [
+const SUPPORTED_KEYS: Array<'ECDSA' | 'Ed25519' | 'RSA'> = [
+  'ECDSA',
   'Ed25519',
   'RSA'
 ]
@@ -39,7 +40,7 @@ describe('keychain', () => {
     const selfKey = 'other-key'
     const keychain = new KeychainClass({
       datastore,
-      getCryptoImplementation: getCryptoImplementation()
+      getCrypto: getCrypto()
     }, {
       selfKey
     })
@@ -58,7 +59,7 @@ describe('keychain', () => {
     await expect(async function () {
       return new KeychainClass({
         datastore,
-        getCryptoImplementation: getCryptoImplementation()
+        getCrypto: getCrypto()
       }, {
         password: '< 20 character'
       })
@@ -68,7 +69,7 @@ describe('keychain', () => {
   it('supports supported hashing algorithms', async () => {
     const ok = new KeychainClass({
       datastore,
-      getCryptoImplementation: getCryptoImplementation()
+      getCrypto: getCrypto()
     }, {
       password,
       hash: 'SHA-256',
@@ -82,7 +83,7 @@ describe('keychain', () => {
     await expect(async function () {
       return new KeychainClass({
         datastore,
-        getCryptoImplementation: getCryptoImplementation()
+        getCrypto: getCrypto()
       }, {
         // @ts-expect-error invalid parameter
         hash: 'my-hash'
@@ -93,7 +94,7 @@ describe('keychain', () => {
   it('can list keys without a password', async () => {
     const keychain = new KeychainClass({
       datastore,
-      getCryptoImplementation: getCryptoImplementation()
+      getCrypto: getCrypto()
     })
 
     await expect(all(keychain.listKeys())).to.eventually.have.lengthOf(0)
@@ -102,11 +103,11 @@ describe('keychain', () => {
   it('can remove a key without a password', async () => {
     const keychainWithoutPassword = new KeychainClass({
       datastore,
-      getCryptoImplementation: getCryptoImplementation()
+      getCrypto: getCrypto()
     })
     const keychainWithPassword = new KeychainClass({
       datastore,
-      getCryptoImplementation: getCryptoImplementation()
+      getCrypto: getCrypto()
     }, {
       password: `hello-${Date.now()}-${Date.now()}`
     })
@@ -128,7 +129,7 @@ describe('keychain', () => {
   it('should validate key names before removing', async () => {
     const keychain = new KeychainClass({
       datastore,
-      getCryptoImplementation: getCryptoImplementation()
+      getCrypto: getCrypto()
     })
 
     const errors = await Promise.all([
@@ -150,7 +151,7 @@ describe('keychain', () => {
   it('does not overwrite existing key', async () => {
     const keychain = new KeychainClass({
       datastore,
-      getCryptoImplementation: getCryptoImplementation()
+      getCrypto: getCrypto()
     })
 
     const keyName = 'my-key'
@@ -167,7 +168,7 @@ describe('keychain', () => {
     beforeEach(async () => {
       keychain = new KeychainClass({
         datastore,
-        getCryptoImplementation: getCryptoImplementation()
+        getCrypto: getCrypto()
       })
 
       privateKey = await keychain.generateKey(rsaKeyName, {
@@ -204,7 +205,7 @@ describe('keychain', () => {
     beforeEach(async () => {
       keychain = new KeychainClass({
         datastore,
-        getCryptoImplementation: getCryptoImplementation()
+        getCrypto: getCrypto()
       })
 
       privateKey = await keychain.generateKey(rsaKeyName, {
@@ -245,7 +246,7 @@ describe('keychain', () => {
     beforeEach(async () => {
       keychain = new KeychainClass({
         datastore,
-        getCryptoImplementation: getCryptoImplementation()
+        getCrypto: getCrypto()
       })
 
       privateKey = await keychain.generateKey(rsaKeyName, {
@@ -296,7 +297,7 @@ describe('keychain', () => {
     beforeEach(async () => {
       keychain = new KeychainClass({
         datastore,
-        getCryptoImplementation: getCryptoImplementation()
+        getCrypto: getCrypto()
       })
     })
 
@@ -348,7 +349,7 @@ describe('keychain', () => {
 
       keychain = new KeychainClass({
         datastore,
-        getCryptoImplementation: getCryptoImplementation()
+        getCrypto: getCrypto()
       }, options)
     })
 
@@ -378,7 +379,7 @@ describe('keychain', () => {
       // cannot load with old password
       const keychainWithOldPassword = new KeychainClass({
         datastore,
-        getCryptoImplementation: getCryptoImplementation()
+        getCrypto: getCrypto()
       }, options)
 
       await expect(keychainWithOldPassword.exportKey(keyName)).to.eventually.be.rejected
@@ -387,7 +388,7 @@ describe('keychain', () => {
       // new password should work
       const keychainWithNewPassword = new KeychainClass({
         datastore,
-        getCryptoImplementation: getCryptoImplementation()
+        getCrypto: getCrypto()
       }, {
         ...options,
         password: newPassword
@@ -404,7 +405,7 @@ describe('keychain', () => {
       beforeEach(async () => {
         keychain = new KeychainClass({
           datastore,
-          getCryptoImplementation: getCryptoImplementation()
+          getCrypto: getCrypto()
         })
       })
 
@@ -434,7 +435,12 @@ describe('keychain', () => {
         await keychain.removeKey(keyName)
         const importedKey = await keychain.importKey(keyName, exportedKey)
 
-        expect(importedKey).to.deep.equal(privateKey)
+        const message = Uint8Array.from([0, 1, 2, 3, 4])
+        const privateKeySig = await privateKey.sign(message)
+        await expect(importedKey.publicKey.verify(message, privateKeySig)).to.eventually.be.true()
+
+        const importedKeySig = await importedKey.sign(message)
+        await expect(privateKey.publicKey.verify(message, importedKeySig)).to.eventually.be.true()
       })
 
       it('can sign and verify', async () => {
@@ -471,17 +477,16 @@ describe('keychain', () => {
     beforeEach(async () => {
       keychain = new KeychainClass({
         datastore,
-        getCryptoImplementation: getCryptoImplementation()
+        getCrypto: getCrypto()
       })
     })
 
-    const keyName = 'my custom ECDSA key'
+    const keyName = 'my custom un-configured key'
 
     it('does not support un-configured keys', async () => {
       await expect(keychain.generateKey(keyName, {
-        type: 'ECDSA'
-      })).to.eventually.be.rejected
-        .with.property('name', 'UnknownCryptoImplementationError')
+        type: 'un-configured'
+      })).to.eventually.be.rejected()
     })
   })
 
@@ -492,7 +497,7 @@ describe('keychain', () => {
     beforeEach(async () => {
       keychain = new KeychainClass({
         datastore,
-        getCryptoImplementation: getCryptoImplementation()
+        getCrypto: getCrypto()
       })
 
       libp2pKeychain = libp2pKeychainFactory()({

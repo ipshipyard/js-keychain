@@ -26,9 +26,9 @@ A WebCrypto-first keychain implementation for use with Helia and libp2p.
 
 ## Configuring additional implementations
 
-RSA and Ed25519 keys are supported out of the box but other schemes are
-configurable by passing a `CryptoImplementationLoader` that can return
-`CryptoKeyImplementation` instances.
+ECDSA, Ed25519 and RSA keys are supported out of the box but other schemes
+are configurable by passing a `CryptoLoader` that can return `Crypto`
+instances.
 
 # Install
 

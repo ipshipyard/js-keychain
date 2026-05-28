@@ -11,7 +11,7 @@ import { withArrayBuffer } from 'uint8arrays/with-array-buffer'
 import { DecryptionFailedError, InvalidParametersError } from './errors.ts'
 import { privateKeyFromPEM } from './legacy.ts'
 import type { Keychain as KeychainInterface, KeyInfo, GenerateKeyOptions, KeychainComponents, KeychainInit, Cipher, EncryptionResult, CipherOptions } from './index.ts'
-import type { CryptoImplementation, PrivateKey, PublicKey } from '@ipshipyard/crypto'
+import type { Crypto, PrivateKey, PublicKey } from '@ipshipyard/crypto'
 import type { AbortOptions } from 'abort-error'
 import type { Batch } from 'interface-datastore'
 
@@ -176,7 +176,7 @@ export class Keychain implements KeychainInterface {
   ]
 
   async generateKey (name: string, options?: GenerateKeyOptions): Promise<PrivateKey> {
-    const crypto = await this.components.getCryptoImplementation(options?.type ?? 'Ed25519', options)
+    const crypto = await this.components.getCrypto(options?.type ?? 'Ed25519', options)
     const key = await crypto.generatePrivateKey(options)
 
     return this.importKey(name, key, options)
@@ -234,7 +234,7 @@ export class Keychain implements KeychainInterface {
   private async _exportKey (name: string, cipher: Cipher, options?: AbortOptions): Promise<PrivateKey> {
     const keyBuf = await this.components.datastore.get(dsName(name), options)
     const keyText = uint8ArrayToString(keyBuf)
-    let cryptoImpl: CryptoImplementation | undefined
+    let cryptoImpl: Crypto | undefined
 
     // if the stored key is encrypted PEM it's legacy RSA, otherwise derive
     // from the protobuf data
@@ -254,7 +254,7 @@ export class Keychain implements KeychainInterface {
         throw new DecryptionFailedError('Unknown key type')
       }
 
-      cryptoImpl = await this.components.getCryptoImplementation(pb.Type, options)
+      cryptoImpl = await this.components.getCrypto(pb.Type, options)
       return await cryptoImpl.privateKeyFromProtobuf(plainText)
     } catch (err: any) {
       if (err.name === 'OperationError') {
@@ -365,7 +365,7 @@ export class Keychain implements KeychainInterface {
       throw new InvalidParametersError('Protobuf was missing Type')
     }
 
-    const crypto = await this.components.getCryptoImplementation(pb.Type, options)
+    const crypto = await this.components.getCrypto(pb.Type, options)
 
     return crypto.publicKeyFromProtobuf(buf, options)
   }

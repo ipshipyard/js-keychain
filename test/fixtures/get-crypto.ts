@@ -1,16 +1,16 @@
-import { ed25519Crypto, rsaCrypto } from '@ipshipyard/crypto'
-import { UnknownCryptoImplementationError } from '../../src/errors.ts'
-import type { CryptoImplementationLoader } from '../../src/index.ts'
-import type { CryptoImplementation } from '@ipshipyard/crypto'
+import { ecdsaCrypto, ed25519Crypto, rsaCrypto } from '@ipshipyard/crypto'
+import type { CryptoLoader } from '../../src/index.ts'
+import type { Crypto } from '@ipshipyard/crypto'
 
 function isPromise <T = any> (obj?: any): obj is Promise<T> {
   return typeof obj?.then === 'function'
 }
 
-export function getCryptoImplementation (initialCryptos: Array<CryptoImplementation> = [], loadCrypto?: CryptoImplementationLoader): CryptoImplementationLoader {
-  const cryptos: Record<string | number, CryptoImplementation> = {}
+export function getCrypto (initialCryptos: Array<Crypto> = [], loadCrypto?: CryptoLoader): CryptoLoader {
+  const cryptos: Record<string | number, Crypto> = {}
 
   initialCryptos = [
+    ecdsaCrypto(),
     ed25519Crypto(),
     rsaCrypto(),
     ...initialCryptos
@@ -41,6 +41,6 @@ export function getCryptoImplementation (initialCryptos: Array<CryptoImplementat
       return crypto
     }
 
-    throw new UnknownCryptoImplementationError(`Could not load crypto for ${crypto}`)
+    throw new Error(`Could not load crypto for ${crypto}`)
   }
 }
