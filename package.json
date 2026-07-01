@@ -152,7 +152,7 @@
   "devDependencies": {
     "@libp2p/crypto": "^5.1.15",
     "@libp2p/keychain": "^6.1.1",
-    "@types/sinon": "^21.0.1",
+    "@types/sinon": "^22.0.0",
     "aegir": "^48.0.4",
     "birnam": "^1.0.0",
     "datastore-core": "^12.0.1",
